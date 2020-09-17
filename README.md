@@ -34,4 +34,4 @@ Feb 11 12:17:54 GarageSensors python2[1896]: CRITICAL:Security Monitor:Car Bay i
 
 **Benchtop Evaluation**
 
-![Benchtop Evaluation](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/BenchTest.jpg?raw=true)
+![Benchtop Evaluation](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/BenchTest.JPG?raw=true)
