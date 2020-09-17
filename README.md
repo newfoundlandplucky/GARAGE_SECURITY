@@ -1,7 +1,7 @@
 # GARAGE_SECURITY
 Monitor PIR sensors to detect motion and magnetic reed switches to detect open doors.
 
-![Deployment on NanoPI NEO Duo2](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/Delpoyment.jpg?raw=true)
+![Deployment on NanoPI NEO Duo2](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/Deployment.jpg?raw=true)
 
 **Tested using the following environment**
 * SBC: NanoPI NEO Core2 "stretch/sid"
