@@ -15,60 +15,22 @@ import subprocess
 import logging
 import logging.handlers
 
-def date_back( theDateAndTime, precise = False, fromDate = None ):
-    # provides a human readable format for a time delta
-    #   @param theDateAndTime this is time equal or older than now or the date in 'fromDate'
-    #   @param precise        when true then milliseconds and microseconds are included
-    #   @param fromDate       when None the 'now' is used otherwise a concrete date is expected
-    #   @return the time delta as text
-    #
-    # @note I don't calculate months and years because those vary (28,29,30 or 31 days a month
-    # and 365 or 366 days the year depending on leap years). In addition please refer
-    # to the documentation for timedelta limitations.
-    if not fromDate:
-        fromDate = datetime.now( )
-    if not theDateAndTime:
-        theDateAndTime = fromDate
-    if theDateAndTime == fromDate:
-        return "Now"
-    elif theDateAndTime > fromDate:
-        return None
-
-    delta = fromDate - theDateAndTime
-
-    # the timedelta structure does not have all units; bigger units are converted
-    # into given smaller ones (hours -> seconds, minutes -> seconds, weeks > days, ...)
-    # but we need all units:
-    deltaMinutes      = delta.seconds // 60
-    deltaHours        = delta.seconds // 3600
-    deltaMinutes     -= deltaHours * 60
-    deltaWeeks        = delta.days    // 7
-    deltaSeconds      = delta.seconds - deltaMinutes * 60 - deltaHours * 3600
-    deltaDays         = delta.days    - deltaWeeks * 7
-    deltaMilliSeconds = delta.microseconds // 1000
-    deltaMicroSeconds = delta.microseconds - deltaMilliSeconds * 1000
-
-    valuesAndNames =[ ( deltaWeeks  ,"week"   ), ( deltaDays   , "day"    ),
-                      ( deltaHours  ,"hour"   ), ( deltaMinutes, "minute" ),
-                      ( deltaSeconds,"second" ) ]
-    if precise:
-        valuesAndNames.append( ( deltaMilliSeconds, "millisecond" ) )
-        valuesAndNames.append( ( deltaMicroSeconds, "microsecond" ) )
-
-    text = ""
-    for value, name in valuesAndNames:
-        if value > 0:
-            text += len(text)   and ", " or ""
-            text += "%d %s" % (value, name)
-            text += (value > 1) and "s" or ""
-
-    # replacing last occurrence of a comma by an 'and'
-    if text.find(",") > 0:
-        text = " and ".join(text.rsplit(", ",1))
-
-    return text + " ago" if len(text) > 0 else text
-
 class Sensor:
+    class pin:
+        PA11 = 8
+        PA12 = 10
+        PA13 = 12
+        PA14 = 14
+        PA16 = 16
+        PA15 = 18
+        PG7 = 20
+        PG6 = 22
+        PG11 = 11
+
+    class activity:
+        INVERT = True
+        PASSTHRU = False
+
     door_states = {
         GPIO.HIGH: 'open',
         GPIO.LOW: 'closed'
@@ -77,35 +39,85 @@ class Sensor:
         GPIO.HIGH: 'active',
         GPIO.LOW: 'quiet'
     }
+
     next_index = 0
     managed_list = [ ]
-    state_fname = "/home/pi/monitor.pickle"
+    state_fname = "/var/lib/monitor/savestate.pickle"
     GPIO.setmode( GPIO.BOARD )
 
-    def __init__( self, gpio, label, state, pull_up_down, state_names ):
+    def __init__( self, order, gpio, label, invert, state_names ):
+        self.order = order
         self.gpio = gpio
         self.label = label
-        self.state = state
-        self.pull_up_down = pull_up_down
+        self.state = None
+        self.invert = invert
+        self.pull_up_down = GPIO.PUD_UP
         self.state_names = state_names
-        self.timestamp = datetime.now( )
+        self.timestamp = None
         self.gpio_setup( )
+
+    def normalized_state( self ):
+        return GPIO.HIGH if self.state == GPIO.HIGH and self.invert == False or \
+                            self.state == GPIO.LOW and self.invert == True else GPIO.LOW
+
+    def is_active( self ):
+        return self.normalized_state( ) == GPIO.HIGH
+
+    def state_name( self ):
+        return self.state_names[ self.normalized_state( ) ]
+
+    def __str__( self ):
+        return "{} is {}".format( self.label, self.state_name( ) )
 
     def gpio_setup( self ):
         GPIO.setup( self.gpio, GPIO.IN, pull_up_down = self.pull_up_down )
-
-    def __str__( self ):
-        return ( "{} is {}".format( self.label, self.state_names[ self.state ] ) )
 
     def poll( self ):
         current_state = GPIO.input( self.gpio )
         if self.state != current_state:
             self.state = current_state
-            if current_state == GPIO.HIGH:
+            if self.normalized_state( ) == GPIO.HIGH:
                 self.timestamp = datetime.now( )
                 logger.critical( self )
             else:
                 logger.info( self )
+
+    def date_back( self ):
+        time_now = datetime.now( )
+        if self.timestamp is None:
+            return "Unknown"
+        if self.timestamp == time_now:
+            return "Now"
+        elif self.timestamp > time_now:
+            self.timestamp = None
+            return "Unknown"
+
+        delta = time_now - self.timestamp
+
+        deltaMinutes      = delta.seconds // 60
+        deltaHours        = delta.seconds // 3600
+        deltaMinutes     -= deltaHours * 60
+        deltaWeeks        = delta.days // 7
+        deltaSeconds      = delta.seconds - deltaMinutes * 60 - deltaHours * 3600
+        deltaDays         = delta.days - deltaWeeks * 7
+        deltaMilliSeconds = delta.microseconds // 1000
+        deltaMicroSeconds = delta.microseconds - deltaMilliSeconds * 1000
+
+        valuesAndNames =[ ( deltaWeeks  , "week"   ), ( deltaDays   , "day"    ),
+                          ( deltaHours  , "hour"   ), ( deltaMinutes, "minute" ) ]
+
+        text = ""
+        for value, name in valuesAndNames:
+            if value > 0:
+                text += len( text ) and ", " or ""
+                text += "%d %s" % ( value, name )
+                text += ( value > 1 ) and "s" or ""
+        if text.find( "," ) > 0:
+            text = " and ".join( text.rsplit( ", ", 1 ) )
+        if len( text ) is 0:
+            text = "<1 minute"
+
+        return text + " ago" if len( text ) > 0 else text
 
     @staticmethod
     def poll_next_in_list( ):
@@ -119,19 +131,28 @@ class Sensor:
             sensor.gpio_setup( )
 
     @staticmethod
+    def default_list( ):
+        return [
+            Sensor( 1, Sensor.pin.PA11, 'Car Bay Door',       Sensor.activity.PASSTHRU, Sensor.door_states ),
+            Sensor( 2, Sensor.pin.PA15, 'Car Bay',            Sensor.activity.PASSTHRU, Sensor.zone_states ),
+            Sensor( 3, Sensor.pin.PA14, 'Driveway Lamp',      Sensor.activity.INVERT,   Sensor.zone_states ),
+            Sensor( 4, Sensor.pin.PA12, 'Equipment Bay Door', Sensor.activity.PASSTHRU, Sensor.door_states ),
+            Sensor( 5, Sensor.pin.PA16, 'Equipment Bay',      Sensor.activity.PASSTHRU, Sensor.zone_states ),
+            Sensor( 6, Sensor.pin.PA13, 'Side Door',          Sensor.activity.PASSTHRU, Sensor.door_states ),
+            Sensor( 7, Sensor.pin.PG11, 'Side Door Lamp',     Sensor.activity.INVERT, Sensor.zone_states ),
+        ]
+
+    @staticmethod
     def configure_probes( ):
         Sensor.next_index = 0
         try:
             Sensor.managed_list = Sensor.load_state( )
-            Sensor.all_gpio_setup( )
+            for sensor in Sensor.default_list( ):
+                if sensor.label not in [ match.label for match in Sensor.managed_list ]:
+                    Sensor.managed_list.append( sensor )
         except:
-            Sensor.managed_list = [
-                Sensor( 8, 'Car Bay Door', GPIO.LOW, GPIO.PUD_UP, Sensor.door_states ),
-                Sensor( 10, 'Equipment Bay Door', GPIO.LOW, GPIO.PUD_UP, Sensor.door_states ),
-                # Sensor( 12, 'Side Door', GPIO.LOW, GPIO.PUD_UP, Sensor.door_states ),
-                Sensor( 16, 'Equipment Bay', GPIO.LOW, GPIO.PUD_UP, Sensor.zone_states ),
-                # Sensor( 18, 'Car Bay', GPIO.LOW, GPIO.PUD_UP, Sensor.zone_states )
-            ]
+            Sensor.managed_list = Sensor.default_list( )
+        Sensor.all_gpio_setup( )
 
     @staticmethod
     def save_state( ):
@@ -146,16 +167,21 @@ class Sensor:
 class MainHandler( tornado.web.RequestHandler ):
     @staticmethod
     def service_status( ):
-        return subprocess.check_output( [ 'systemctl', 'status', 'monitor' ] )
+        try:
+            return subprocess.check_output( [ 'systemctl', 'status', 'monitor' ] )
+        except:
+            return "Not running as a service."
 
     @staticmethod
     def make_app( ):
-        return tornado.web.Application( [ ( r"/", MainHandler ), ] )
+        return tornado.web.Application( [ ( r'^/(favicon.ico)', tornado.web.StaticFileHandler, { "path" : "" } ),
+                                          ( r'^/$', MainHandler ), ] )
 
     def get( self ):
         self.write( "<head>" )
         self.write( "<title>Sensors</title>" )
         self.write( "<meta http-equiv=\"refresh\" content=\"5\" />" )
+        self.write( "<link rel=\"Shortcut Icon\" href=\"/favicon.ico\" />" )
         self.write( "</head>" )
         self.write( "<table style=\"font-family: Verdana, Geneva, sans-serif\" border=\"1\">" )
         self.write( "<thead><tr style=\"background: #6699ff\">" )
@@ -164,12 +190,13 @@ class MainHandler( tornado.web.RequestHandler ):
         self.write( "<td>Last Opened or Active</td>" )
         self.write( "</tr></thead>" )
         self.write( "<tbody>" )
-        for sensor in Sensor.managed_list:
-            style = "background: red" if sensor.state == GPIO.HIGH else "background: white"
+        for sensor in sorted( Sensor.managed_list, key = lambda probe: probe.order, reverse = False ):
+            style = "background: red" if sensor.is_active( ) else "background: white"
+            state = sensor.timestamp.strftime( "%a %b %d %I:%M:%S %p" ) if sensor.timestamp else "Inactive"
             self.write( "<tr style=\"{}\">".format( style ) )
-            self.write( "<td>{}</td>".format( sensor.timestamp.strftime( "%a %b %d %I:%M:%S %p" ) ) )
+            self.write( "<td>{}</td>".format( state ) )
             self.write( "<td>{}</td>".format( sensor ) )
-            self.write( "<td>{}</td>".format( date_back( sensor.timestamp ) ) )
+            self.write( "<td>{}</td>".format( sensor.date_back( ) ) )
             self.write( "</tr>" )
         self.write( "</tbody>" )
         self.write( "</table>" )
@@ -185,7 +212,7 @@ def signal_handler( sig, frame ):
 try:
     logger = logging.getLogger( 'Security Monitor' )
     logger.setLevel( logging.INFO )
-    handler = logging.handlers.SysLogHandler( address = ( '192.168.2.16', 514 ), facility = logging.handlers.SysLogHandler.LOG_DAEMON )
+    handler = logging.handlers.SysLogHandler( address = ( 'localhost', 514 ), facility = logging.handlers.SysLogHandler.LOG_DAEMON )
     handler.setLevel( logging.INFO )
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter( formatter )

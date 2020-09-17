@@ -1,0 +1,14 @@
+[Unit]
+Description=check wlan0 connection to local server
+After=sys-devices-platform-soc-1c10000.mmc-mmc_host-mmc2-mmc2:0001-mmc2:0001:1-net-wlan0.device
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/checklan.sh
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+

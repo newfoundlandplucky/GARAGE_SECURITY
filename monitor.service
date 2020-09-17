@@ -1,0 +1,13 @@
+[Unit]
+Description=security sensor monitoring service
+BindsTo=sys-devices-platform-soc-1c10000.mmc-mmc_host-mmc2-mmc2:0001-mmc2:0001:1-net-wlan0.device
+After=sys-devices-platform-soc-1c10000.mmc-mmc_host-mmc2-mmc2:0001-mmc2:0001:1-net-wlan0.device
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python2 /usr/local/bin/monitor.py
+Restart=always
+RestartSec=0
+
+[Install]
+WantedBy=multi-user.target
