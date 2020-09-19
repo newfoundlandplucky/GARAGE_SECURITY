@@ -174,8 +174,11 @@ class MainHandler( tornado.web.RequestHandler ):
 
     @staticmethod
     def make_app( ):
-        return tornado.web.Application( [ ( r'^/(favicon.ico)', tornado.web.StaticFileHandler, { "path" : "" } ),
-                                          ( r'^/$', MainHandler ), ] )
+        handlers = [
+            ( r'/(favicon\.ico)', tornado.web.StaticFileHandler, { "path" : "/var/lib/monitor" } ),
+            ( r'^/$', MainHandler ),
+        ]
+        return tornado.web.Application( handlers )
 
     def get( self ):
         self.write( "<head>" )

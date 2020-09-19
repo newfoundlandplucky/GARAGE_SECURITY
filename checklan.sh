@@ -17,18 +17,22 @@
 #	7. nmcli nm wifi off
 #	   nmcli nm wifi on
 # 
+# Useful commands:
+#	iw wlan0 set power_save off
+#	iw wlan0 info
+#	iw phy0 info
+#	sudo journalctl | grep brcmfmac
+#
 while [ 1 ] 
 do
+    sleep 600
     ping -c 1 192.168.2.16 2>1 > /dev/null < /dev/null
     if  [ $? -ne 0 ]; then
         echo `date` ": wlan down."
-	systemctl status network-manager --full --no-pager
-	iwconfig wlan0
-        systemctl restart network-manager
-        sleep 15
+        systemctl status network-manager --full --no-pager
+        iwconfig wlan0
+        systemctl --force reboot
     else
         echo `date` ": wlan up."
     fi
-    sleep 300
 done
-
