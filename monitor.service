@@ -5,7 +5,7 @@ After=sys-devices-platform-soc-1c10000.mmc-mmc_host-mmc2-mmc2:0001-mmc2:0001:1-n
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python2 /usr/local/bin/monitor.py
+ExecStart=/usr/bin/python3 /usr/local/bin/monitor.py
 Restart=always
 RestartSec=0
 

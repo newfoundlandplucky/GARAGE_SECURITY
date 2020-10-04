@@ -1,16 +1,23 @@
-#!/usr/bin/python
-
+#!/usr/bin/python3
+#
+# https://github.com/friendlyarm/RPi.GPIO_NP
+#
+# This is a modified version RPi.GPIO for NanoPi Duo/Duo2. We call it RPi.GPIO_NP.
+# It is based on the original RPi.GPIO. The RPi.GPIO_NP API usage are the same to
+# the original RPi.GPIO.
+#
 from RPi import GPIO
 from time import sleep, time
 from datetime import datetime
 
-import pickle
 import tornado.ioloop
 import tornado.web
+import pickle
 
-import signal
+import os
 import sys
 import subprocess
+import signal
 
 import logging
 import logging.handlers
@@ -35,6 +42,7 @@ class Sensor:
         GPIO.HIGH: 'open',
         GPIO.LOW: 'closed'
     }
+
     zone_states = {
         GPIO.HIGH: 'active',
         GPIO.LOW: 'quiet'
@@ -42,7 +50,10 @@ class Sensor:
 
     next_index = 0
     managed_list = [ ]
-    state_fname = "/var/lib/monitor/savestate.pickle"
+    state_path = os.path.join( os.path.sep, 'var', 'lib', 'monitor' )
+    state_filename = "savestate.pickle"
+    state_fullname = os.path.join( state_path, state_filename )
+    state_extension = "."
     GPIO.setmode( GPIO.BOARD )
 
     def __init__( self, order, gpio, label, invert, state_names ):
@@ -100,11 +111,9 @@ class Sensor:
         deltaWeeks        = delta.days // 7
         deltaSeconds      = delta.seconds - deltaMinutes * 60 - deltaHours * 3600
         deltaDays         = delta.days - deltaWeeks * 7
-        deltaMilliSeconds = delta.microseconds // 1000
-        deltaMicroSeconds = delta.microseconds - deltaMilliSeconds * 1000
 
-        valuesAndNames =[ ( deltaWeeks  , "week"   ), ( deltaDays   , "day"    ),
-                          ( deltaHours  , "hour"   ), ( deltaMinutes, "minute" ) ]
+        valuesAndNames = [ ( deltaWeeks, "week" ), ( deltaDays,    "day"    ),
+                           ( deltaHours, "hour" ), ( deltaMinutes, "minute" ) ]
 
         text = ""
         for value, name in valuesAndNames:
@@ -139,7 +148,7 @@ class Sensor:
             Sensor( 4, Sensor.pin.PA12, 'Equipment Bay Door', Sensor.activity.PASSTHRU, Sensor.door_states ),
             Sensor( 5, Sensor.pin.PA16, 'Equipment Bay',      Sensor.activity.PASSTHRU, Sensor.zone_states ),
             Sensor( 6, Sensor.pin.PA13, 'Side Door',          Sensor.activity.PASSTHRU, Sensor.door_states ),
-            Sensor( 7, Sensor.pin.PG11, 'Side Door Lamp',     Sensor.activity.INVERT, Sensor.zone_states ),
+            Sensor( 7, Sensor.pin.PG11, 'Side Door Lamp',     Sensor.activity.INVERT,   Sensor.zone_states ),
         ]
 
     @staticmethod
@@ -155,13 +164,31 @@ class Sensor:
         Sensor.all_gpio_setup( )
 
     @staticmethod
+    def backup_fullname( ):
+        from stat import S_ISREG, ST_MTIME, ST_MODE
+        ARRAY_OLDEST = 0
+        TUPLE_FILENAME = 1
+
+        path = Sensor.state_path
+        target = Sensor.state_filename + Sensor.state_extension
+        filenames = [ os.path.join( path, filename ) for filename in os.listdir( path ) if target in filename ]
+        if len( filenames ) < 10:
+            return Sensor.state_fullname + Sensor.state_extension + str( len( filenames ) )
+        filestats = [ ( os.stat( filename ), filename ) for filename in filenames ]
+        filedates = sorted( [ ( filestate[ST_MTIME], filename ) for filestate, filename in filestats ] )
+
+        return filedates[ARRAY_OLDEST][TUPLE_FILENAME]
+
+    @staticmethod
     def save_state( ):
-        with open( Sensor.state_fname, "w" ) as json_file:
+        os.rename( Sensor.state_fullname, Sensor.backup_fullname( ) )
+        with open( Sensor.state_fullname, 'wb' ) as json_file:
             pickle.dump( Sensor.managed_list, json_file )
 
     @staticmethod
     def load_state( ):
-        with open( Sensor.state_fname, "r" ) as json_file:
+        logger.critical( "Reading state from " + Sensor.state_fullname )
+        with open( Sensor.state_fullname, 'rb' ) as json_file:
             return pickle.load( json_file )
 
 class MainHandler( tornado.web.RequestHandler ):
@@ -204,7 +231,7 @@ class MainHandler( tornado.web.RequestHandler ):
         self.write( "</tbody>" )
         self.write( "</table>" )
         self.write( "<br>" )
-        self.write( self.service_status( ).replace( "\n", "<br>" ) )
+        self.write( self.service_status( ).decode( ).replace( "\n", "<br>" ) )
 
 def signal_handler( sig, frame ):
     logger.critical( " graceful exit ... " )
