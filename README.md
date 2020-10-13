@@ -40,7 +40,6 @@ wheel (0.29.0)
 **Browser Interface**
 
 ![Web Interface](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/WebInterface.jpg?raw=true)
-**Benchtop Evaluation**
 
 **Sample Output**
 
