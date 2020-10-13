@@ -1,7 +1,7 @@
 # GARAGE_SECURITY
 Monitor PIR sensors to detect motion, magnetic reed switches to detect open doors, and BME280 for environment.
 
-![Deployment on NanoPI NEO Duo2](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/Delpoyment.jpg?raw=true)
+![Deployment on NanoPI NEO Duo2](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/Deployment.jpg?raw=true)
 
 **Tested using the following environment**
 * SBC: NanoPI NEO Core2 "stretch/sid"
@@ -79,7 +79,7 @@ Oct 13 09:51:54 GarageSensors checklan.sh[495]: Tue Oct 13 09:51:54 EDT 2020 : w
 Oct 13 10:01:54 GarageSensors checklan.sh[495]: Tue Oct 13 10:01:54 EDT 2020 : wlan up.
 ```
 
-![NanoPi NEO Core2 Pinout](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/WebInterface.jpg?raw=true)
+![Web Interface](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/WebInterface.jpg?raw=true)
 
 **Benchtop Evaluation**
 
