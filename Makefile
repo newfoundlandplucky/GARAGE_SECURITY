@@ -12,6 +12,8 @@ install:
 		chmod 755 /var/lib/monitor; \
 		cp favicon.ico /var/lib/monitor; \
 		chmod 444 /var/lib/monitor/favicon.ico; \
+		cp banner.png /var/lib/monitor; \
+		chmod 444 /var/lib/monitor/banner.png; \
 	fi
 
 	cp monitor.service /lib/systemd/system/monitor.service

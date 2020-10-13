@@ -10,14 +10,17 @@ from RPi import GPIO
 from time import sleep, time
 from datetime import datetime
 
-import tornado.ioloop
-import tornado.web
-import pickle
-
 import os
 import sys
 import subprocess
 import signal
+
+import tornado.ioloop
+import tornado.web
+import pickle
+
+import smbus2
+import bme280
 
 import logging
 import logging.handlers
@@ -54,6 +57,12 @@ class Sensor:
     state_filename = "savestate.pickle"
     state_fullname = os.path.join( state_path, state_filename )
     state_extension = "."
+
+    i2c_port = 0
+    i2c_address = 0x77
+    i2c_bus = smbus2.SMBus( i2c_port )
+    bme280_calibration = bme280.load_calibration_params( i2c_bus, i2c_address )
+
     GPIO.setmode( GPIO.BOARD )
 
     def __init__( self, order, gpio, label, invert, state_names ):
@@ -142,14 +151,24 @@ class Sensor:
     @staticmethod
     def default_list( ):
         return [
-            Sensor( 1, Sensor.pin.PA11, 'Car Bay Door',       Sensor.activity.PASSTHRU, Sensor.door_states ),
+            Sensor( 1, Sensor.pin.PG7,  'Car Bay Door',       Sensor.activity.PASSTHRU, Sensor.door_states ),
             Sensor( 2, Sensor.pin.PA15, 'Car Bay',            Sensor.activity.PASSTHRU, Sensor.zone_states ),
             Sensor( 3, Sensor.pin.PA14, 'Driveway Lamp',      Sensor.activity.INVERT,   Sensor.zone_states ),
-            Sensor( 4, Sensor.pin.PA12, 'Equipment Bay Door', Sensor.activity.PASSTHRU, Sensor.door_states ),
+            Sensor( 4, Sensor.pin.PG6,  'Equipment Bay Door', Sensor.activity.PASSTHRU, Sensor.door_states ),
             Sensor( 5, Sensor.pin.PA16, 'Equipment Bay',      Sensor.activity.PASSTHRU, Sensor.zone_states ),
             Sensor( 6, Sensor.pin.PA13, 'Side Door',          Sensor.activity.PASSTHRU, Sensor.door_states ),
             Sensor( 7, Sensor.pin.PG11, 'Side Door Lamp',     Sensor.activity.INVERT,   Sensor.zone_states ),
         ]
+
+    @staticmethod
+    def add_or_update( target ):
+        for sensor in Sensor.managed_list:
+            if sensor.label == target.label:
+                sensor.order = target.order
+                sensor.gpio = target.gpio
+                return sensor
+        Sensor.managed_list.append( target )
+        return target
 
     @staticmethod
     def configure_probes( ):
@@ -157,8 +176,7 @@ class Sensor:
         try:
             Sensor.managed_list = Sensor.load_state( )
             for sensor in Sensor.default_list( ):
-                if sensor.label not in [ match.label for match in Sensor.managed_list ]:
-                    Sensor.managed_list.append( sensor )
+                Sensor.add_or_update( sensor )
         except:
             Sensor.managed_list = Sensor.default_list( )
         Sensor.all_gpio_setup( )
@@ -191,6 +209,10 @@ class Sensor:
         with open( Sensor.state_fullname, 'rb' ) as json_file:
             return pickle.load( json_file )
 
+    @staticmethod
+    def bme280_sample( ):
+        return bme280.sample( Sensor.i2c_bus, Sensor.i2c_address, Sensor.bme280_calibration )
+
 class MainHandler( tornado.web.RequestHandler ):
     @staticmethod
     def service_status( ):
@@ -203,6 +225,7 @@ class MainHandler( tornado.web.RequestHandler ):
     def make_app( ):
         handlers = [
             ( r'/(favicon\.ico)', tornado.web.StaticFileHandler, { "path" : "/var/lib/monitor" } ),
+            ( r'/(banner\.png)', tornado.web.StaticFileHandler, { "path" : "/var/lib/monitor" } ),
             ( r'^/$', MainHandler ),
         ]
         return tornado.web.Application( handlers )
@@ -210,15 +233,30 @@ class MainHandler( tornado.web.RequestHandler ):
     def get( self ):
         self.write( "<head>" )
         self.write( "<title>Sensors</title>" )
-        self.write( "<meta http-equiv=\"refresh\" content=\"5\" />" )
+        self.write( "<meta http-equiv=\"refresh\" content=\"15\" />" )
         self.write( "<link rel=\"Shortcut Icon\" href=\"/favicon.ico\" />" )
         self.write( "</head>" )
+ 
         self.write( "<table style=\"font-family: Verdana, Geneva, sans-serif\" border=\"1\">" )
-        self.write( "<thead><tr style=\"background: #6699ff\">" )
+        self.write( "<thead>" )
+
+        bme280_data = Sensor.bme280_sample( )
+        self.write( "<tr background=\"/banner.png\">" )
+        self.write( "<td colspan=\"3\" style=\"color: white\">" )
+        self.write( "Time: {0:%A %B %d, %I:%M:%S %p}</br>".format( bme280_data.timestamp ) )
+        self.write( "Temperature: {0:0.0f} °C</br>".format( bme280_data.temperature ) )
+        self.write( "Pressure: {0:0.0f} hPa</br>".format( bme280_data.pressure ) )
+        self.write( "Humidity: {0:0.0f} % rH".format( bme280_data.humidity ) )
+        self.write( "</td>" )
+        self.write( "</tr>" )
+
+        self.write( "<tr style=\"background: #6699ff\">" )
         self.write( "<td>Opened or Active Timestamp</td>" )
         self.write( "<td>State</td>" )
         self.write( "<td>Last Opened or Active</td>" )
-        self.write( "</tr></thead>" )
+        self.write( "</tr>" )
+        self.write( "</thead>" )
+
         self.write( "<tbody>" )
         for sensor in sorted( Sensor.managed_list, key = lambda probe: probe.order, reverse = False ):
             style = "background: red" if sensor.is_active( ) else "background: white"
@@ -249,7 +287,7 @@ try:
     logger.addHandler( handler )
 
     signal.signal( signal.SIGTERM, signal_handler )
-
+    
     Sensor.configure_probes( )
     if __name__ == "__main__":
         app = MainHandler.make_app( )
