@@ -37,6 +37,11 @@ wheel (0.29.0)
 
 ![NanoPi NEO Core2 Pinout](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/NanoPi_Duo2.jpg?raw=true)
 
+**Browser Interface**
+
+![Web Interface](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/WebInterface.jpg?raw=true)
+**Benchtop Evaluation**
+
 **Sample Output**
 
 ```
@@ -79,8 +84,6 @@ Oct 13 09:51:54 GarageSensors checklan.sh[495]: Tue Oct 13 09:51:54 EDT 2020 : w
 Oct 13 10:01:54 GarageSensors checklan.sh[495]: Tue Oct 13 10:01:54 EDT 2020 : wlan up.
 ```
 
-![Web Interface](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/WebInterface.jpg?raw=true)
-
 **Benchtop Evaluation**
 
-![Benchtop Evaluation](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/BenchTest.jpg?raw=true)
+![Benchtop Evaluation](https://github.com/newfoundlandplucky/GARAGE_SECURITY/blob/master/documentation/BenchTest.JPG?raw=true)
